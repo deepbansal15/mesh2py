@@ -1,0 +1,1 @@
+python3 build_scripts/build_usd.py pxr_install --build-variant release —build-target universal ignore-homebrew --no-tests --no-examples --no-tutorials --no-docs --no-python-docs --no-python --no-debug-python --no-usdview --materialx --onetbb --draco --openimageio
