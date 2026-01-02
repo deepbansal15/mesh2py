@@ -1,7 +1,7 @@
 function(compile_config TARGET)
 
     set(CMAKE_CXX_EXTENSIONS OFF)
-    target_compile_features(${TARGET} PUBLIC cxx_std_17)
+    target_compile_features(${TARGET} PUBLIC cxx_std_20)
 
     if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
         target_compile_options(${TARGET} PRIVATE
