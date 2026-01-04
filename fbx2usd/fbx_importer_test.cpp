@@ -108,6 +108,11 @@ bool TestFbxImporter(const char* fbx_filename) {
         std::cerr << "Failed to load FBX file" << std::endl;
         return false;
     }
+
+    for (size_t i = 0; i < scene->nodes.count; i++) {
+        ufbx_node *node = scene->nodes.data[i];
+        printf("%s\n", node->name.data);
+    }
     
     std::cout << "Loaded FBX scene successfully" << std::endl;
     std::cout << "Found " << scene->nodes.count << " nodes" << std::endl;
@@ -161,14 +166,14 @@ bool TestFbxImporter(const char* fbx_filename) {
 
 // Main function for standalone testing
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cout << "Usage: " << argv[0] << " <fbx_file>" << std::endl;
-        return 1;
-    }
+    // if (argc != 2) {
+    //     std::cout << "Usage: " << argv[0] << " <fbx_file>" << std::endl;
+    //     return 1;
+    // }
     
     const char* fbx_filename = argv[1];
     
-    bool success = mesh2usd::fbx2usd::TestFbxImporter(fbx_filename);
+    bool success = mesh2usd::fbx2usd::TestFbxImporter("D:/projects/mesh2usd/build/Debug/data/blender_272_cube_7400_binary.fbx");
     
     if (success) {
         std::cout << "\nTest PASSED!" << std::endl;

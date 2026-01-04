@@ -5,7 +5,7 @@
 
 #include <unordered_map>
 
-#define UFBX_REAL_IS_FLOAT
+//#define UFBX_REAL_IS_FLOAT
 #include <ufbx.h>
 
 namespace mesh2usd::fbx2usd {

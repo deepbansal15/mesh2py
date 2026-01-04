@@ -25,29 +25,29 @@ find_package(meshoptimizer REQUIRED)
 find_package(ufbx REQUIRED)
 
 # add executable
-add_executable(main main.cpp)
+#add_executable(main main.cpp)
 
-target_link_libraries(main 
-PUBLIC 
-    meshoptimizer::meshoptimizer
-    ufbx::ufbx
-    OpenImageIO::OpenImageIO
-    OpenImageIO::OpenImageIO_Util
-    tf
-    sdf
-    usd
-    usdGeom
-    usdLux
-    usdRender
-    usdSkel
-    usdShade
-    usdUtils
-    usdVol
-    hio
-    arch
-)
+# target_link_libraries(main 
+# PUBLIC 
+#     meshoptimizer::meshoptimizer
+#     ufbx::ufbx
+#     OpenImageIO::OpenImageIO
+#     OpenImageIO::OpenImageIO_Util
+#     tf
+#     sdf
+#     usd
+#     usdGeom
+#     usdLux
+#     usdRender
+#     usdSkel
+#     usdShade
+#     usdUtils
+#     usdVol
+#     hio
+#     arch
+# )
 
-compile_config(main)
+# compile_config(main)
 
 # add test executable
 add_executable(fbx_importer_test fbx2usd/fbx_importer_test.cpp fbx2usd/fbx_importer.cpp scene_data.cpp)
@@ -60,12 +60,12 @@ PUBLIC
 
 compile_config(fbx_importer_test)
 
-add_custom_command(TARGET main POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-          "${ufbx_SOURCE_DIR}/data"
-          "$<TARGET_FILE_DIR:main>/data"
-  VERBATIM
-)
+# add_custom_command(TARGET main POST_BUILD
+#   COMMAND ${CMAKE_COMMAND} -E copy_directory
+#           "${ufbx_SOURCE_DIR}/data"
+#           "$<TARGET_FILE_DIR:main>/data"
+#   VERBATIM
+# )
 
 add_custom_command(TARGET fbx_importer_test POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
