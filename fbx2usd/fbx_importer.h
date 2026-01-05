@@ -5,17 +5,16 @@
 
 #include <unordered_map>
 
-//#define UFBX_REAL_IS_FLOAT
 #include <ufbx.h>
 
-namespace mesh2usd::fbx2usd {
+namespace mesh2py::fbx {
 
 struct FbxContext {
     const ufbx_scene* scene;
     std::unordered_map<ufbx_node*, int> node_to_index;
     std::unordered_map<ufbx_mesh*, int> mesh_to_index;
-    SceneStorage& storage;
+    SceneStorage storage;
 };
 
-void ImportScene(FbxContext* context);
+void ImportScene(FbxContext& context);
 }
