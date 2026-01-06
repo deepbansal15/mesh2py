@@ -3,7 +3,7 @@
 #include <inttypes.h>
 #include <span>
 #include <vector>
-namespace mesh2py {
+namespace mesh2py::common {
 
 // Rounds `x` up to a multiple of `a`. `a` must be a power of two.
 template <class T>
@@ -74,15 +74,7 @@ struct SceneStorage {
 };
 
 FaceView GetFaceView(SceneStorage& storage, MeshInfo& mesh_info);
-
 AttributeView GetAttribView(SceneStorage& storage, AttributeInfo& attrib_info);
 
-
-
-
-
 }
-
-
-// Only tirangle meshes are supported
 

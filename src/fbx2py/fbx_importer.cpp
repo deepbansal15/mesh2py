@@ -1,7 +1,15 @@
 #include "fbx_importer.h"
 
 namespace mesh2py::fbx {
-    using namespace mesh2py;
+    using namespace mesh2py::common;
+
+    struct FbxContext {
+        const ufbx_scene* scene;
+        std::unordered_map<ufbx_node*, int> node_to_index;
+        std::unordered_map<ufbx_mesh*, int> mesh_to_index;
+        SceneStorage storage;
+    };
+
     // Helper function to copy indices (no conversion needed - they're uint32_t)
     inline void CopyIndices(uint32_t* dst, const uint32_t* src, size_t count) {
         memcpy(dst, src, count * sizeof(uint32_t));
@@ -35,16 +43,9 @@ namespace mesh2py::fbx {
     }
 
 static void ImportMesh(SceneStorage& storage, MeshInfo& mesh_info, ufbx_mesh* fbx_mesh) {
-    // DEBUG: Log mesh info
-    fprintf(stderr, "[DEBUG] ImportMesh: mesh_info.face_count=%u, attribute_info_count=%u, attrib_info_start_index=%u\n",
-            mesh_info.face_count, mesh_info.attribute_info_count, mesh_info.attrib_info_start_index);
-    fprintf(stderr, "[DEBUG] ImportMesh: storage.data.size()=%zu, storage.attrib_infos.size()=%zu\n",
-            storage.data.size(), storage.attrib_infos.size());
     
     // Import faces first
     FaceView view = GetFaceView(storage, mesh_info);
-    fprintf(stderr, "[DEBUG] ImportMesh: faces ptr=%p, fbx_mesh->faces.data=%p, fbx_mesh->faces.count=%zu\n",
-            (void*)view.faces.data(), (void*)fbx_mesh->faces.data, fbx_mesh->faces.count);
     memcpy(view.faces.data(), fbx_mesh->faces.data, sizeof(ufbx_face) * mesh_info.face_count);
     
     // Import all the vertex attributes
@@ -53,22 +54,13 @@ static void ImportMesh(SceneStorage& storage, MeshInfo& mesh_info, ufbx_mesh* fb
 
     uint32_t attrib_start_index = mesh_info.attrib_info_start_index;
     uint32_t attrib_end_index = attrib_start_index + mesh_info.attribute_info_count;
-    fprintf(stderr, "[DEBUG] ImportMesh: attrib_start=%u, attrib_end=%u\n", attrib_start_index, attrib_end_index);
     
     for (uint32_t attrib_idx = attrib_start_index; attrib_idx < attrib_end_index; ++attrib_idx) {
         AttributeInfo& attrib_info = storage.attrib_infos[attrib_idx];
         AttributeView attrib_view = GetAttribView(storage, attrib_info);
-        
-        fprintf(stderr, "[DEBUG] ImportMesh: attrib_idx=%u, type=%u, indices: ptr=%p count=%u, data: ptr=%p count=%u\n",
-                attrib_idx, (uint32_t)attrib_info.attrib_type,
-                (void*)attrib_view.indices.data(), attrib_info.index_count,
-                (void*)attrib_view.data.data(), attrib_info.value_count);
                 
         switch (attrib_info.attrib_type) {
             case VertexAttribType::Position: {
-                fprintf(stderr, "[DEBUG] ImportMesh: Position - fbx indices ptr=%p count=%u, values ptr=%p count=%zu\n",
-                        (void*)fbx_mesh->vertex_position.indices.data, fbx_mesh->vertex_position.indices.count,
-                        (void*)fbx_mesh->vertex_position.values.data, fbx_mesh->vertex_position.values.count);
                 CopyIndices(attrib_view.indices.data(), fbx_mesh->vertex_position.indices.data, fbx_mesh->vertex_position.indices.count);
                 ConvertVec3ToFloat(attrib_view.data.data(), fbx_mesh->vertex_position.values.data, fbx_mesh->vertex_position.values.count);
                 break;
@@ -176,15 +168,14 @@ static uint32_t AllocateAttribute(SceneStorage& storage, T& vertex_attrib_data,
     uint32_t num_value_per_index) {
     AttributeInfo& attrib_info = storage.attrib_infos[attrib_index];
     attrib_info.attrib_type = attrib_type;
+    
     attrib_info.index_offset = align_up(current_offset, 16);
     attrib_info.index_count = vertex_attrib_data.indices.count;
     attrib_info.num_value_per_index = num_value_per_index;
-    attrib_info.value_offset = align_up(attrib_info.index_offset + attrib_info.index_count * sizeof(uint32_t), 16);
+
+    current_offset = attrib_info.index_offset + attrib_info.index_count * sizeof(uint32_t);
+    attrib_info.value_offset = align_up(current_offset, 16);
     attrib_info.value_count = vertex_attrib_data.values.count;
-    
-    fprintf(stderr, "[DEBUG] AllocateAttribute: type=%u, index_offset=%u, index_count=%u, value_offset=%u, value_count=%u\n",
-            (uint32_t)attrib_type, attrib_info.index_offset, attrib_info.index_count,
-            attrib_info.value_offset, attrib_info.value_count);
     
     current_offset = attrib_info.value_offset + attrib_info.value_count * sizeof(float) * attrib_info.num_value_per_index;
     return current_offset;
@@ -193,9 +184,6 @@ static uint32_t AllocateAttribute(SceneStorage& storage, T& vertex_attrib_data,
 void AllocateSceneData(FbxContext& context) {
     SceneStorage& storage = context.storage;
     uint32_t current_offset = 0;
-    
-    fprintf(stderr, "[DEBUG] AllocateSceneData: nodes.count=%zu, meshes.count=%zu\n",
-            context.scene->nodes.count, context.scene->meshes.count);
     
     storage.nodes.resize(context.scene->nodes.count);
     storage.mesh_infos.resize(context.scene->meshes.count);
@@ -206,11 +194,7 @@ void AllocateSceneData(FbxContext& context) {
         mesh_info.face_count = fbx_mesh->faces.count;
         current_offset = mesh_info.face_offset + mesh_info.face_count * sizeof(ufbx_face);
         
-        fprintf(stderr, "[DEBUG] AllocateSceneData: mesh=%u, face_offset=%u, face_count=%u, current_offset=%u\n",
-                mesh_idx, mesh_info.face_offset, mesh_info.face_count, current_offset);
-        
         // Fill up attributes
-        
         uint32_t attrib_count = 0;
         attrib_count += fbx_mesh->vertex_position.exists ? 1 : 0;
         attrib_count += fbx_mesh->vertex_normal.exists ? 1 : 0;
@@ -221,8 +205,6 @@ void AllocateSceneData(FbxContext& context) {
         
         mesh_info.attribute_info_count = attrib_count;
         mesh_info.attrib_info_start_index = storage.attrib_infos.size();
-        fprintf(stderr, "[DEBUG] AllocateSceneData: mesh=%u, attrib_count=%u, attrib_info_start_index=%u\n",
-                mesh_idx, attrib_count, mesh_info.attrib_info_start_index);
         storage.attrib_infos.resize(storage.attrib_infos.size() + attrib_count);
         // Fill up each attribute
         uint32_t attrib_idx = mesh_info.attrib_info_start_index;
@@ -277,4 +259,23 @@ void ImportScene(FbxContext& context) {
     ImportNodes(context);
 }
 
+}
+
+mesh2py::common::SceneStorage ImportFbx(const char* path) {
+    ufbx_load_opts load_opts = {};
+    ufbx_error error = {};
+    
+    ufbx_scene* scene = ufbx_load_file(path, &load_opts, &error);
+    if (!scene) {
+        printf("Error %s/n", error.description.data);
+        return {};
+    }
+    
+    mesh2py::fbx::FbxContext context;
+    context.scene = scene;
+    mesh2py::fbx::ImportScene(context);
+
+    ufbx_free_scene(scene);
+
+    return context.storage;
 }

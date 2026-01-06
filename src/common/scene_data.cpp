@@ -1,6 +1,6 @@
 #include "scene_data.h"
 
-namespace mesh2py {
+namespace mesh2py::common {
 
 FaceView GetFaceView(SceneStorage& storage, MeshInfo& mesh_info) {
     size_t base_addr = (size_t)storage.data.data();

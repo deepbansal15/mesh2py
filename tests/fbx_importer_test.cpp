@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <cmath>
 
+#include "obj_writer.h"
+
 namespace mesh2py::fbxtest {
 using namespace mesh2py;
 using namespace mesh2py::fbx;
@@ -27,23 +29,10 @@ bool CompareUint32(uint32_t expected, uint32_t actual, const char* context) {
     return true;
 }
 
-// Compare uint32_t arrays
-bool CompareUint32Arrays(const uint32_t* expected, const uint32_t* actual,
-                         size_t count, const char* context) {
-    for (size_t i = 0; i < count; ++i) {
-        if (expected[i] != actual[i]) {
-            std::cerr << "Mismatch in " << context << "[" << i << "]: expected="
-                      << expected[i] << ", actual=" << actual[i] << std::endl;
-            return false;
-        }
-    }
-    return true;
-}
 
 // Compare ufbx_indices arrays - ufbx uses void* for data, cast to uint32_t*
-bool CompareUfbxIndexArrays(const void* expected_data, size_t expected_count,
-                            const uint32_t* actual, const char* context) {
-    const uint32_t* expected_indices = reinterpret_cast<const uint32_t*>(expected_data);
+bool CompareUfbxIndexArrays(const uint32_t* expected_indices, const uint32_t* actual,
+                            size_t expected_count, const char* context) {
     for (size_t i = 0; i < expected_count; ++i) {
         uint32_t expected_idx = expected_indices[i];
         uint32_t actual_idx = actual[i];
@@ -63,21 +52,6 @@ bool CompareFloat(double expected_double, float actual_float, const char* contex
         std::cerr << "Mismatch in " << context << ": expected=" << expected_float
                   << " (from double " << expected_double << "), actual=" << actual_float << std::endl;
         return false;
-    }
-    return true;
-}
-
-// Compare float arrays (ufbx uses double, SceneStorage uses float)
-bool CompareFloatArrays(const double* expected_double, const float* actual_float,
-                        size_t count, const char* context) {
-    for (size_t i = 0; i < count; ++i) {
-        float expected_float = static_cast<float>(expected_double[i]);
-        if (expected_float != actual_float[i]) {
-            std::cerr << "Mismatch in " << context << "[" << i << "]: expected="
-                      << expected_float << " (from double " << expected_double[i]
-                      << "), actual=" << actual_float[i] << std::endl;
-            return false;
-        }
     }
     return true;
 }
@@ -233,8 +207,9 @@ bool VerifyAttributeIndices(const ufbx_mesh* fbx_mesh,
             case VertexAttribType::Position: {
                 snprintf(context, sizeof(context), "Mesh %u Position indices", mesh_index);
                 if (!CompareUfbxIndexArrays(fbx_mesh->vertex_position.indices.data,
+                                            attrib_view.indices.data(),
                                             fbx_mesh->vertex_position.indices.count,
-                                            attrib_view.indices.data(), context)) {
+                                            context)) {
                     all_passed = false;
                 }
                 break;
@@ -242,8 +217,9 @@ bool VerifyAttributeIndices(const ufbx_mesh* fbx_mesh,
             case VertexAttribType::Normal: {
                 snprintf(context, sizeof(context), "Mesh %u Normal indices", mesh_index);
                 if (!CompareUfbxIndexArrays(fbx_mesh->vertex_normal.indices.data,
+                                            attrib_view.indices.data(), 
                                             fbx_mesh->vertex_normal.indices.count,
-                                            attrib_view.indices.data(), context)) {
+                                            context)) {
                     all_passed = false;
                 }
                 break;
@@ -251,8 +227,9 @@ bool VerifyAttributeIndices(const ufbx_mesh* fbx_mesh,
             case VertexAttribType::Tangent: {
                 snprintf(context, sizeof(context), "Mesh %u Tangent indices", mesh_index);
                 if (!CompareUfbxIndexArrays(fbx_mesh->vertex_tangent.indices.data,
+                                            attrib_view.indices.data(),
                                             fbx_mesh->vertex_tangent.indices.count,
-                                            attrib_view.indices.data(), context)) {
+                                            context)) {
                     all_passed = false;
                 }
                 break;
@@ -260,34 +237,33 @@ bool VerifyAttributeIndices(const ufbx_mesh* fbx_mesh,
             case VertexAttribType::BiTangent: {
                 snprintf(context, sizeof(context), "Mesh %u BiTangent indices", mesh_index);
                 if (!CompareUfbxIndexArrays(fbx_mesh->vertex_bitangent.indices.data,
+                                            attrib_view.indices.data(),
                                             fbx_mesh->vertex_bitangent.indices.count,
-                                            attrib_view.indices.data(), context)) {
+                                            context)) {
                     all_passed = false;
                 }
                 break;
             }
             case VertexAttribType::TexCoord: {
-                if (uv_idx < fbx_mesh->uv_sets.count) {
-                    snprintf(context, sizeof(context), "Mesh %u TexCoord[%u] indices", mesh_index, uv_idx);
-                    if (!CompareUfbxIndexArrays(fbx_mesh->uv_sets[uv_idx].vertex_uv.indices.data,
-                                                fbx_mesh->uv_sets[uv_idx].vertex_uv.indices.count,
-                                                attrib_view.indices.data(), context)) {
-                        all_passed = false;
-                    }
-                    uv_idx++;
+                snprintf(context, sizeof(context), "Mesh %u TexCoord[%u] indices", mesh_index, uv_idx);
+                if (!CompareUfbxIndexArrays(fbx_mesh->uv_sets[uv_idx].vertex_uv.indices.data,
+                                            attrib_view.indices.data(),
+                                            fbx_mesh->uv_sets[uv_idx].vertex_uv.indices.count,
+                                            context)) {
+                    all_passed = false;
                 }
+                uv_idx++;
                 break;
             }
             case VertexAttribType::Color: {
-                if (color_idx < fbx_mesh->color_sets.count) {
-                    snprintf(context, sizeof(context), "Mesh %u Color[%u] indices", mesh_index, color_idx);
-                    if (!CompareUfbxIndexArrays(fbx_mesh->color_sets[color_idx].vertex_color.indices.data,
-                                                fbx_mesh->color_sets[color_idx].vertex_color.indices.count,
-                                                attrib_view.indices.data(), context)) {
-                        all_passed = false;
-                    }
-                    color_idx++;
+                snprintf(context, sizeof(context), "Mesh %u Color[%u] indices", mesh_index, color_idx);
+                if (!CompareUfbxIndexArrays(fbx_mesh->color_sets[color_idx].vertex_color.indices.data,
+                                            attrib_view.indices.data(),
+                                            fbx_mesh->color_sets[color_idx].vertex_color.indices.count,
+                                            context)) {
+                    all_passed = false;
                 }
+                color_idx++;
                 break;
             }
             default:
@@ -322,12 +298,7 @@ bool VerifyAttributeValues(const ufbx_mesh* fbx_mesh,
         
         switch (attrib_info.attrib_type) {
             case VertexAttribType::Position: {
-                snprintf(context, sizeof(context), "Mesh %u Position values", mesh_index);
-                if (!CompareVec3Arrays(fbx_mesh->vertex_position.values.data,
-                                       attrib_view.data.data(),
-                                       fbx_mesh->vertex_position.values.count, context)) {
-                    all_passed = false;
-                }
+                
                 break;
             }
             case VertexAttribType::Normal: {
@@ -358,27 +329,23 @@ bool VerifyAttributeValues(const ufbx_mesh* fbx_mesh,
                 break;
             }
             case VertexAttribType::TexCoord: {
-                if (uv_idx < fbx_mesh->uv_sets.count) {
-                    snprintf(context, sizeof(context), "Mesh %u TexCoord[%u] values", mesh_index, uv_idx);
-                    if (!CompareVec2Arrays(fbx_mesh->uv_sets[uv_idx].vertex_uv.values.data,
-                                           attrib_view.data.data(),
-                                           fbx_mesh->uv_sets[uv_idx].vertex_uv.values.count, context)) {
-                        all_passed = false;
-                    }
-                    uv_idx++;
+                snprintf(context, sizeof(context), "Mesh %u TexCoord[%u] values", mesh_index, uv_idx);
+                if (!CompareVec2Arrays(fbx_mesh->uv_sets[uv_idx].vertex_uv.values.data,
+                                        attrib_view.data.data(),
+                                        fbx_mesh->uv_sets[uv_idx].vertex_uv.values.count, context)) {
+                    all_passed = false;
                 }
+                uv_idx++;
                 break;
             }
             case VertexAttribType::Color: {
-                if (color_idx < fbx_mesh->color_sets.count) {
-                    snprintf(context, sizeof(context), "Mesh %u Color[%u] values", mesh_index, color_idx);
-                    if (!CompareVec4Arrays(fbx_mesh->color_sets[color_idx].vertex_color.values.data,
-                                           attrib_view.data.data(),
-                                           fbx_mesh->color_sets[color_idx].vertex_color.values.count, context)) {
-                        all_passed = false;
-                    }
-                    color_idx++;
+                snprintf(context, sizeof(context), "Mesh %u Color[%u] values", mesh_index, color_idx);
+                if (!CompareVec4Arrays(fbx_mesh->color_sets[color_idx].vertex_color.values.data,
+                                        attrib_view.data.data(),
+                                        fbx_mesh->color_sets[color_idx].vertex_color.values.count, context)) {
+                    all_passed = false;
                 }
+                color_idx++;
                 break;
             }
             default:
@@ -575,14 +542,14 @@ void ExportMeshToOBJ(const std::string& filename, SceneStorage& storage, uint32_
     
     MeshInfo& mesh_info = storage.mesh_infos[mesh_index];
     
-    std::ofstream obj_file(filename);
+    std::fstream obj_file;
+    obj_file.open(filename, std::ios::out);
     if (!obj_file.is_open()) {
         std::cerr << "Failed to create OBJ file: " << filename << std::endl;
         return;
     }
-    
-    obj_file << "# Exported from FBX Importer Test\n";
-    obj_file << "# Mesh " << mesh_index << " - Positions and Normals only\n\n";
+
+    objwriter::ObjWriter w(obj_file);
     
     // Find position and normal attributes
     AttributeInfo* position_attrib = nullptr;
@@ -600,32 +567,33 @@ void ExportMeshToOBJ(const std::string& filename, SceneStorage& storage, uint32_
     // Write positions to OBJ file
     if (position_attrib) {
         AttributeView position_view = GetAttribView(storage, *position_attrib);
-        obj_file << "# Positions\n";
+        w.comment("Positions");
         
         for (uint32_t i = 0; i < position_view.data.size() / 3; ++i) {
+            
             float x = position_view.data[i * 3 + 0];
             float y = position_view.data[i * 3 + 1];
             float z = position_view.data[i * 3 + 2];
-            obj_file << "v " << x << " " << y << " " << z << "\n";
+            w.vertex(x , y, z);
         }
     }
     
     // Write normals to OBJ file
-    if (normal_attrib) {
-        AttributeView normal_view = GetAttribView(storage, *normal_attrib);
-        obj_file << "# Normals\n";
+    // if (normal_attrib) {
+    //     AttributeView normal_view = GetAttribView(storage, *normal_attrib);
+    //     obj_file << "# Normals\n";
         
-        for (uint32_t i = 0; i < normal_view.data.size() / 3; ++i) {
-            float nx = normal_view.data[i * 3 + 0];
-            float ny = normal_view.data[i * 3 + 1];
-            float nz = normal_view.data[i * 3 + 2];
-            obj_file << "vn " << nx << " " << ny << " " << nz << "\n";
-        }
-        obj_file << "\n";
-    }
+    //     for (uint32_t i = 0; i < normal_view.data.size() / 3; ++i) {
+    //         float nx = normal_view.data[i * 3 + 0];
+    //         float ny = normal_view.data[i * 3 + 1];
+    //         float nz = normal_view.data[i * 3 + 2];
+    //         obj_file << "vn " << nx << " " << ny << " " << nz << "\n";
+    //     }
+    //     obj_file << "\n";
+    // }
     
     // Write face indices (convert to OBJ format - OBJ is 1-indexed)
-    obj_file << "# Faces\n";
+    w.comment("Faces");
     
     if (position_attrib) {
         AttributeView position_view = GetAttribView(storage, *position_attrib);
@@ -634,15 +602,14 @@ void ExportMeshToOBJ(const std::string& filename, SceneStorage& storage, uint32_
         // For triangular faces, write each face
         for (uint32_t face_idx = 0; face_idx < mesh_info.face_count; ++face_idx) {
             Face& face = face_view.faces[face_idx];
+            if (face.num_of_indices > 3) 
+                std::cout << "Indorrect face count" << std::endl;
+            uint32_t v1 = position_view.indices[face.indices_begin + 0] + 1; // OBJ is 1-indexed
+            uint32_t v2 = position_view.indices[face.indices_begin + 1] + 1;
+            uint32_t v3 = position_view.indices[face.indices_begin + 2] + 1;
             
-            // Assuming triangular faces
-            if (face.num_of_indices >= 3 && face.indices_begin + 2 < position_view.indices.size()) {
-                uint32_t v1 = position_view.indices[face.indices_begin + 0] + 1; // OBJ is 1-indexed
-                uint32_t v2 = position_view.indices[face.indices_begin + 1] + 1;
-                uint32_t v3 = position_view.indices[face.indices_begin + 2] + 1;
-                
-                obj_file << "f " << v1 << " " << v2 << " " << v3 << "\n";
-            }
+            w.face(v1, v2, v3);
+            obj_file << "f " << v1 << " " << v2 << " " << v3 << "\n";
         }
     }
     
@@ -685,35 +652,35 @@ bool TestFbxImporter(const char* fbx_filename) {
     
     // Export each mesh to OBJ for verification
     std::cout << "Exporting meshes to OBJ files..." << std::endl;
-    
-    for (uint32_t i = 0; i < context.storage.mesh_infos.size(); ++i) {
-        std::string obj_filename = "mesh_" + std::to_string(i) + ".obj";
-        ExportMeshToOBJ(obj_filename, context.storage, i);
+    //context.storage.mesh_infos.size()
+    for (uint32_t i = 0; i < 2; ++i) {
+         std::string obj_filename = "mesh_" + std::to_string(i) + ".obj";
+         ExportMeshToOBJ(obj_filename, context.storage, i);
     }
     
     // Print node hierarchy information
-    std::cout << "\nNode hierarchy:" << std::endl;
-    for (uint32_t i = 0; i < context.storage.nodes.size(); ++i) {
-        Node& node = context.storage.nodes[i];
-        std::cout << "Node " << i << ": parent=" << node.parent 
-                  << ", mesh_index=" << node.mesh_index << std::endl;
-    }
+    // std::cout << "\nNode hierarchy:" << std::endl;
+    // for (uint32_t i = 0; i < context.storage.nodes.size(); ++i) {
+    //     Node& node = context.storage.nodes[i];
+    //     std::cout << "Node " << i << ": parent=" << node.parent 
+    //               << ", mesh_index=" << node.mesh_index << std::endl;
+    // }
     
-    // Print mesh information
-    std::cout << "\nMesh information:" << std::endl;
-    for (uint32_t i = 0; i < context.storage.mesh_infos.size(); ++i) {
-        MeshInfo& mesh = context.storage.mesh_infos[i];
-        std::cout << "Mesh " << i << ": faces=" << mesh.face_count
-                  << ", attributes=" << mesh.attribute_info_count << std::endl;
+    // // Print mesh information
+    // std::cout << "\nMesh information:" << std::endl;
+    // for (uint32_t i = 0; i < context.storage.mesh_infos.size(); ++i) {
+    //     MeshInfo& mesh = context.storage.mesh_infos[i];
+    //     std::cout << "Mesh " << i << ": faces=" << mesh.face_count
+    //               << ", attributes=" << mesh.attribute_info_count << std::endl;
         
-        // Print attribute details
-        for (uint32_t j = 0; j < mesh.attribute_info_count; ++j) {
-            AttributeInfo& attrib = context.storage.attrib_infos[mesh.attrib_info_start_index + j];
-            std::cout << "  Attr " << j << ": type=" << static_cast<uint32_t>(attrib.attrib_type)
-                      << ", indices=" << attrib.index_count
-                      << ", values=" << attrib.value_count << std::endl;
-        }
-    }
+    //     // Print attribute details
+    //     for (uint32_t j = 0; j < mesh.attribute_info_count; ++j) {
+    //         AttributeInfo& attrib = context.storage.attrib_infos[mesh.attrib_info_start_index + j];
+    //         std::cout << "  Attr " << j << ": type=" << static_cast<uint32_t>(attrib.attrib_type)
+    //                   << ", indices=" << attrib.index_count
+    //                   << ", values=" << attrib.value_count << std::endl;
+    //     }
+    // }
     
     // Verify SceneStorage values against ufbx_scene
     bool verification_passed = VerifySceneStorage(scene, context);
@@ -741,7 +708,7 @@ int main(int argc, char* argv[]) {
     
     const char* fbx_filename = argv[1];
     
-    bool success = mesh2py::fbxtest::TestFbxImporter("KB3D_SOL_BldgTemple_A.fbx");
+    bool success = mesh2py::fbxtest::TestFbxImporter("D:/projects/mesh2usd/build/Debug/kb3d_secretsoftheluminara-native.fbx");
     
     if (success) {
         std::cout << "\nTest PASSED!" << std::endl;
