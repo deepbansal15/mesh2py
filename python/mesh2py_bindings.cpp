@@ -34,7 +34,7 @@ NB_MODULE(NB_MODULE_NAME, m) {
     nb::class_<Node>(m, "Node")
         .def(nb::init<>())
         .def_rw("parent", &Node::parent)
-        .def_property("mesh_index", &Node::mesh_index)
+        .def_rw("mesh_index", &Node::mesh_index)
         .def_prop_rw(
             "transform",
             [](Node &self) {
@@ -72,11 +72,18 @@ NB_MODULE(NB_MODULE_NAME, m) {
         .def_rw("indices_begin", &Face::indices_begin)
         .def_rw("num_of_indices", &Face::num_of_indices);
     
+    using DataView = nb::ndarray<uint8_t, nb::shape<-1>, nb::device::cpu, nb::c_contig, nb::numpy>;
     // Expose SceneStorage struct
     nb::class_<SceneStorage>(m, "SceneStorage")
         .def(nb::init<>())
         .def_rw("nodes", &SceneStorage::nodes)
         .def_rw("mesh_infos", &SceneStorage::mesh_infos)
         .def_rw("attrib_infos", &SceneStorage::attrib_infos)
-        .def_rw("data", &SceneStorage::data)
+        .def_prop_ro(
+            "data",
+            [](SceneStorage &self) {
+                return DataView(self.data.data(),{ self.data.size() });
+            },
+            nb::rv_policy::reference_internal
+        );
 }
